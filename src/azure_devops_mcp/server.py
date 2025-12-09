@@ -249,6 +249,35 @@ def create_pr_comment(
 
 
 @mcp.tool()
+def add_pr_line_comment(
+    pr_id: int,
+    text: str,
+    file_path: str,
+    line: int,
+    repository: Optional[str] = None,
+    project: Optional[str] = None,
+    end_line: Optional[int] = None,
+    side: str = "right",
+) -> Dict[str, Any]:
+    """Add a line-scoped PR comment.
+
+    - side: "right" (modified) or "left" (original). Defaults to "right".
+    - end_line: optional to create a multi-line span.
+    """
+    client = _client()
+    return client.add_pr_line_comment(
+        pr_id,
+        text,
+        file_path,
+        line,
+        repository=repository,
+        project=project,
+        end_line=end_line,
+        side=side,
+    )
+
+
+@mcp.tool()
 def list_pr_reviewers(
     pr_id: int,
     repository: Optional[str] = None,

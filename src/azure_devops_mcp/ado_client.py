@@ -307,6 +307,54 @@ class AzureDevOpsClient:
             body["threadContext"] = thread_context
         return self._post(url, json=body)
 
+    def add_pr_line_comment(
+        self,
+        pr_id: int,
+        text: str,
+        file_path: str,
+        line: int,
+        repository: Optional[str] = None,
+        project: Optional[str] = None,
+        end_line: Optional[int] = None,
+        side: str = "right",
+    ) -> Dict[str, Any]:
+        """Add a line-scoped comment to a PR on a specific file and side.
+
+        side: "right" (modified) or "left" (original). Defaults to "right".
+        The comment spans from `line` to `end_line` (inclusive) when `end_line` is provided.
+        """
+        proj = project or self.cfg.default_project
+        repo = repository or self.cfg.default_repository
+        if not proj:
+            raise AzureDevOpsError("Project is required (set AZDO_PROJECT or pass project)")
+        if not repo:
+            raise AzureDevOpsError("Repository is required (set AZDO_REPOSITORY or pass repository)")
+
+        url = self._api(f"/_apis/git/repositories/{repo}/pullRequests/{pr_id}/threads", project=proj)
+        body: Dict[str, Any] = {
+            "comments": [
+                {
+                    "parentCommentId": 0,
+                    "content": text,
+                    "commentType": 1,
+                }
+            ],
+            "status": 1,
+        }
+
+        s = (side or "right").strip().lower()
+        if s not in ("right", "left"):
+            raise AzureDevOpsError("side must be 'right' or 'left'")
+
+        ctx: Dict[str, Any] = {"filePath": file_path}
+        start_key = "rightFileStart" if s == "right" else "leftFileStart"
+        end_key = "rightFileEnd" if s == "right" else "leftFileEnd"
+        ctx[start_key] = {"line": int(line), "offset": 1}
+        ctx[end_key] = {"line": int(end_line if end_line is not None else line), "offset": 1}
+        body["threadContext"] = ctx
+
+        return self._post(url, json=body)
+
     def list_pr_reviewers(
         self,
         pr_id: int,

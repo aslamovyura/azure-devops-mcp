@@ -23,6 +23,7 @@ Features
   - List PR commits: `list_pr_commits`
   - List PR threads: `list_pr_threads`
   - Comment on PR: `create_pr_comment`
+  - Line comment on PR: `add_pr_line_comment`
   - List reviewers: `list_pr_reviewers`
   - Add reviewer: `add_pr_reviewer`
   - Set reviewer vote: `set_reviewer_vote`
@@ -144,6 +145,7 @@ Tools (signatures)
   - `list_pr_commits(pr_id, repository?, project?)`
   - `list_pr_threads(pr_id, repository?, project?)`
   - `create_pr_comment(pr_id, text, repository?, project?, file_path?, start_line?, end_line?)`
+  - `add_pr_line_comment(pr_id, text, file_path, line, repository?, project?, end_line?, side='right')`
   - `list_pr_reviewers(pr_id, repository?, project?)`
   - `add_pr_reviewer(pr_id, reviewer_id, repository?, project?)`
   - `set_reviewer_vote(pr_id, reviewer_id, vote, repository?, project?)`
