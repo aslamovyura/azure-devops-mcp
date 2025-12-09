@@ -343,6 +343,36 @@ def abandon_pull_request(
     """Abandon (close without merging) a pull request."""
     client = _client()
     return client.abandon_pull_request(pr_id, repository=repository, project=project)
+
+
+# Diffs for analysis
+@mcp.tool()
+def get_pr_diffs(
+    pr_id: int,
+    repository: Optional[str] = None,
+    project: Optional[str] = None,
+    include_content: bool = True,
+    base_version: Optional[str] = None,
+    target_version: Optional[str] = None,
+    base_version_type: Optional[str] = None,
+    target_version_type: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Get PR diffs for analysis.
+
+    Returns the Azure DevOps diffs payload between base and target.
+    By default, derives base/target from the PR and includes content blocks.
+    """
+    client = _client()
+    return client.get_pr_diffs(
+        pr_id,
+        repository=repository,
+        project=project,
+        include_content=include_content,
+        base_version=base_version,
+        target_version=target_version,
+        base_version_type=base_version_type,
+        target_version_type=target_version_type,
+    )
 # Wiki tools
 @mcp.tool()
 def list_wikis(project: Optional[str] = None) -> List[Dict[str, Any]]:

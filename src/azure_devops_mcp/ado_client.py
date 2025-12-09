@@ -432,6 +432,86 @@ class AzureDevOpsClient:
     ) -> Dict[str, Any]:
         return self.update_pull_request(pr_id, repository=repository, project=project, status="abandoned")
 
+    def get_pr_diffs(
+        self,
+        pr_id: int,
+        repository: Optional[str] = None,
+        project: Optional[str] = None,
+        include_content: bool = True,
+        base_version: Optional[str] = None,
+        target_version: Optional[str] = None,
+        base_version_type: Optional[str] = None,
+        target_version_type: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Get the diff between the PR base and target for analysis.
+
+        This uses the Git diffs API (diffs/commits). If explicit base/target
+        versions are not provided, it derives them from the PR:
+        - Prefer lastMergeTargetCommit/lastMergeSourceCommit commit IDs
+        - Fallback to targetRefName/sourceRefName branch refs
+
+        Parameters:
+        - pr_id: Pull request ID
+        - repository: Repo name or ID (defaults to AZDO_REPOSITORY)
+        - project: Project name (defaults to AZDO_PROJECT)
+        - include_content: When true, include line diff blocks when available
+        - base_version/target_version: Optional explicit versions (commit ID or ref)
+        - base_version_type/target_version_type: One of commit|branch|tag; inferred if omitted
+        """
+        proj = project or self.cfg.default_project
+        repo = repository or self.cfg.default_repository
+        if not proj:
+            raise AzureDevOpsError("Project is required (set AZDO_PROJECT or pass project)")
+        if not repo:
+            raise AzureDevOpsError("Repository is required (set AZDO_REPOSITORY or pass repository)")
+
+        bv = base_version
+        tv = target_version
+        bvt = base_version_type
+        tvt = target_version_type
+
+        if not (bv and tv):
+            pr = self.get_pull_request(pr_id, repository=repo, project=proj)
+            # Try commit IDs first
+            base_commit = (
+                (pr.get("lastMergeTargetCommit") or {}).get("commitId") if isinstance(pr, dict) else None
+            )
+            target_commit = (
+                (pr.get("lastMergeSourceCommit") or {}).get("commitId") if isinstance(pr, dict) else None
+            )
+            if base_commit and target_commit:
+                bv = base_commit
+                tv = target_commit
+                bvt = bvt or "commit"
+                tvt = tvt or "commit"
+            else:
+                # Fallback to branch refs
+                base_ref = pr.get("targetRefName") if isinstance(pr, dict) else None
+                target_ref = pr.get("sourceRefName") if isinstance(pr, dict) else None
+                if base_ref and target_ref:
+                    bv = base_ref
+                    tv = target_ref
+                    bvt = bvt or "branch"
+                    tvt = tvt or "branch"
+
+        if not (bv and tv):
+            raise AzureDevOpsError(
+                "Unable to determine base/target for diff (pass base_version/target_version explicitly)"
+            )
+
+        url = self._api(f"/_apis/git/repositories/{repo}/diffs/commits", project=proj)
+        params: Dict[str, Any] = {
+            "baseVersion": bv,
+            "targetVersion": tv,
+            "includeContent": "true" if include_content else "false",
+        }
+        if bvt:
+            params["baseVersionType"] = bvt
+        if tvt:
+            params["targetVersionType"] = tvt
+
+        return self._get(url, params=params)
+
     # Wiki APIs (preview)
     def list_wikis(self, project: Optional[str] = None) -> List[Dict[str, Any]]:
         """List wikis in a project or collection.
