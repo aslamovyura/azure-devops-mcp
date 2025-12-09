@@ -14,6 +14,13 @@
 - Assign work item: `assign_work_item`
 - Transition state: `transition_state`
 - Link work items: `link_work_items`
+- Azure DevOps Wiki tools (preview API):
+  - List wikis: `list_wikis`
+  - List wiki pages: `list_wiki_pages`
+  - Get wiki page: `get_wiki_page`
+  - Update wiki page: `update_wiki_page`
+  - Create/Update wiki page: `upsert_wiki_page`
+  - Delete wiki page: `delete_wiki_page`
 
 **Compatibility**
 
@@ -38,6 +45,8 @@
   - `AZDO_AUTH_TYPE`: `pat|ntlm`, default `pat`
   - For PAT: `AZDO_PAT`: Personal Access Token with Work Items scope (Read & Write)
   - For NTLM: `AZDO_NTLM_USERNAME`, `AZDO_NTLM_PASSWORD`, optional `AZDO_NTLM_DOMAIN`
+
+Wiki endpoints use the Azure DevOps Wiki preview API (`7.1-preview.1`) internally and are compatible with DevOps Server versions that support Wiki REST endpoints. If your server requires a different preview version, update the code or open an issue.
 
 Examples:
 
@@ -137,6 +146,21 @@ Compose file: `docker-compose.yml:1`; Env template: `.env.example:1`
 - `link_work_items(source_id, target_id, link_type="System.LinkTypes.Hierarchy-Forward")`
   - Creates a work item relation (default: parent->child).
 
+Wiki tools:
+
+- `list_wikis(project?)`
+  - Lists wikis for the given `project` (defaults to `AZDO_PROJECT` when set).
+- `list_wiki_pages(wiki, project?, path?, recursion_level?, include_content=false)`
+  - Lists pages in a `wiki` (by name or ID). Optional `path` to scope, `recursion_level`=`oneLevel|full|none`.
+- `get_wiki_page(wiki, path, project?, include_content=true)`
+  - Gets a single page by `path`. Returns page metadata and, when requested, the `content` field.
+- `update_wiki_page(wiki, path, content, project?, comment?, version?)`
+  - Updates an existing page with markdown `content`. Uses optimistic concurrency via `If-Match`; if `version` (or eTag) is not provided, the server fetches the current version first.
+- `upsert_wiki_page(wiki, path, content, project?, comment?)`
+  - Creates or updates a page with markdown `content`. Optional `comment` as the edit message.
+- `delete_wiki_page(wiki, path, project?, comment?)`
+  - Deletes a page by `path`. Optional `comment` as the delete message.
+
 **On‑Prem Notes**
 
 - Collections: On many on‑prem instances the REST path includes a collection (e.g., `.../tfs/DefaultCollection`). You can set this via `AZDO_COLLECTION` or include it in `AZDO_BASE_URL`.
@@ -145,7 +169,7 @@ Compose file: `docker-compose.yml:1`; Env template: `.env.example:1`
 
 **Permissions**
 
-- PAT scope: Work Items (Read & Write) at minimum.
+- PAT scope: Work Items (Read & Write) at minimum; for Wiki tools add Wiki permissions as required by your instance.
 - Assigning/updating items also requires project permissions (e.g., edit work items in this node).
 
 **Troubleshooting**
