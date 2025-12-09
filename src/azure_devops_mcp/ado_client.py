@@ -86,6 +86,32 @@ class AzureDevOpsClient:
             raise AzureDevOpsError(f"PATCH {url} failed: {resp.status_code} {resp.text}")
         return resp.json()
 
+    def _put(
+        self,
+        url: str,
+        json: Any,
+        params: Optional[Dict[str, Any]] = None,
+        content_type: Optional[str] = None,
+        headers: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, Any]:
+        hdrs: Dict[str, str] = dict(headers or {})
+        if content_type:
+            hdrs["Content-Type"] = content_type
+        resp = self.session.put(url, json=json, params=self._ensure_params(params), headers=hdrs)
+        if not resp.ok:
+            raise AzureDevOpsError(f"PUT {url} failed: {resp.status_code} {resp.text}")
+        return resp.json()
+
+    def _delete(self, url: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        resp = self.session.delete(url, params=self._ensure_params(params))
+        if not resp.ok:
+            raise AzureDevOpsError(f"DELETE {url} failed: {resp.status_code} {resp.text}")
+        # Some delete endpoints return an empty body
+        try:
+            return resp.json()
+        except Exception:
+            return {"status": resp.status_code}
+
     # Public API
     def list_projects(self) -> List[Dict[str, Any]]:
         url = self._api("/_apis/projects")
@@ -154,6 +180,137 @@ class AzureDevOpsClient:
         ]
         return self.update_work_item(source_id, ops)
 
+    # Wiki APIs (preview)
+    def list_wikis(self, project: Optional[str] = None) -> List[Dict[str, Any]]:
+        """List wikis in a project or collection.
+
+        Uses preview API version for broader compatibility with Wiki endpoints.
+        """
+        url = self._api("/_apis/wiki/wikis", project=project or self.cfg.default_project)
+        params = {"api-version": "7.1-preview.1"}
+        data = self._get(url, params=params)
+        return data.get("value", [])
+
+    def list_wiki_pages(
+        self,
+        wiki: str,
+        project: Optional[str] = None,
+        path: Optional[str] = None,
+        recursion_level: Optional[str] = None,
+        include_content: bool = False,
+    ) -> Dict[str, Any]:
+        """List pages for a wiki. Optionally scope by `path` and include content.
+
+        Returns the raw response which includes a `value` array of pages.
+        """
+        proj = project or self.cfg.default_project
+        if not proj:
+            raise AzureDevOpsError("Project is required (set AZDO_PROJECT or pass project)")
+        url = self._api(f"/_apis/wiki/wikis/{wiki}/pages", project=proj)
+        params: Dict[str, Any] = {"api-version": "7.1-preview.1"}
+        if path:
+            params["path"] = path
+        if recursion_level:
+            params["recursionLevel"] = recursion_level
+        if include_content:
+            params["includeContent"] = "true"
+        return self._get(url, params=params)
+
+    def get_wiki_page(
+        self,
+        wiki: str,
+        path: str,
+        project: Optional[str] = None,
+        include_content: bool = True,
+    ) -> Dict[str, Any]:
+        """Get a single wiki page by path. Returns metadata and optionally content."""
+        proj = project or self.cfg.default_project
+        if not proj:
+            raise AzureDevOpsError("Project is required (set AZDO_PROJECT or pass project)")
+        url = self._api(f"/_apis/wiki/wikis/{wiki}/pages", project=proj)
+        params: Dict[str, Any] = {"api-version": "7.1-preview.1", "path": path}
+        if include_content:
+            params["includeContent"] = "true"
+        return self._get(url, params=params)
+
+    def upsert_wiki_page(
+        self,
+        wiki: str,
+        path: str,
+        content: str,
+        project: Optional[str] = None,
+        comment: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Create or update a wiki page by path with markdown content."""
+        proj = project or self.cfg.default_project
+        if not proj:
+            raise AzureDevOpsError("Project is required (set AZDO_PROJECT or pass project)")
+        url = self._api(f"/_apis/wiki/wikis/{wiki}/pages", project=proj)
+        params: Dict[str, Any] = {"api-version": "7.1-preview.1", "path": path}
+        body: Dict[str, Any] = {"content": content}
+        if comment:
+            body["comment"] = comment
+        return self._put(url, json=body, params=params)
+
+    def update_wiki_page(
+        self,
+        wiki: str,
+        path: str,
+        content: str,
+        project: Optional[str] = None,
+        comment: Optional[str] = None,
+        version: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Update an existing wiki page by path with markdown content.
+
+        Uses optimistic concurrency via `If-Match` header. If `version` is not
+        provided, the current version is fetched first. This avoids accidentally
+        creating a new page and ensures we edit an existing one.
+        """
+        proj = project or self.cfg.default_project
+        if not proj:
+            raise AzureDevOpsError("Project is required (set AZDO_PROJECT or pass project)")
+
+        # Resolve current version if not provided
+        current_version: Optional[str] = version
+        if current_version is None:
+            url_get = self._api(f"/_apis/wiki/wikis/{wiki}/pages", project=proj)
+            params_get: Dict[str, Any] = {"api-version": "7.1-preview.1", "path": path}
+            page = self._get(url_get, params=params_get)
+            # Azure DevOps typically returns eTag for pages; fall back to version if present
+            current_version = (
+                (page.get("eTag") if isinstance(page, dict) else None)
+                or (str(page.get("version")) if isinstance(page, dict) and page.get("version") is not None else None)
+            )
+            if not current_version:
+                raise AzureDevOpsError("Unable to determine current page version; pass version explicitly")
+
+        url_put = self._api(f"/_apis/wiki/wikis/{wiki}/pages", project=proj)
+        params_put: Dict[str, Any] = {"api-version": "7.1-preview.1", "path": path}
+        body: Dict[str, Any] = {"content": content}
+        if comment:
+            body["comment"] = comment
+        # Set If-Match for optimistic concurrency control
+        headers = {"If-Match": str(current_version)}
+        return self._put(url_put, json=body, params=params_put, headers=headers)
+
+    def delete_wiki_page(
+        self,
+        wiki: str,
+        path: str,
+        project: Optional[str] = None,
+        comment: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Delete a wiki page by path."""
+        proj = project or self.cfg.default_project
+        if not proj:
+            raise AzureDevOpsError("Project is required (set AZDO_PROJECT or pass project)")
+        url = self._api(f"/_apis/wiki/wikis/{wiki}/pages", project=proj)
+        params: Dict[str, Any] = {"api-version": "7.1-preview.1", "path": path}
+        if comment:
+            params["comment"] = comment
+        return self._delete(url, params=params)
+
     # Convenience helpers for common fields
     @staticmethod
     def build_fields(
@@ -188,4 +345,3 @@ class AzureDevOpsClient:
     @staticmethod
     def patch_from_fields(fields: Dict[str, Any]) -> List[Dict[str, Any]]:
         return [{"op": "add", "path": f"/fields/{k}", "value": v} for k, v in fields.items()]
-

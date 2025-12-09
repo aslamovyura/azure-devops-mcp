@@ -158,6 +158,96 @@ def link_work_items(
     return client.link_work_items(source_id, target_id, link_type)
 
 
+# Wiki tools
+@mcp.tool()
+def list_wikis(project: Optional[str] = None) -> List[Dict[str, Any]]:
+    """List wikis in a project or collection."""
+    client = _client()
+    return client.list_wikis(project=project or client.cfg.default_project)
+
+
+@mcp.tool()
+def list_wiki_pages(
+    wiki: str,
+    project: Optional[str] = None,
+    path: Optional[str] = None,
+    recursion_level: Optional[str] = None,
+    include_content: bool = False,
+) -> Dict[str, Any]:
+    """List pages in a wiki; optionally filter by path and include content."""
+    client = _client()
+    return client.list_wiki_pages(
+        wiki=wiki,
+        project=project,
+        path=path,
+        recursion_level=recursion_level,
+        include_content=include_content,
+    )
+
+
+@mcp.tool()
+def get_wiki_page(
+    wiki: str,
+    path: str,
+    project: Optional[str] = None,
+    include_content: bool = True,
+) -> Dict[str, Any]:
+    """Get a single wiki page by path."""
+    client = _client()
+    return client.get_wiki_page(wiki=wiki, path=path, project=project, include_content=include_content)
+
+
+@mcp.tool()
+def upsert_wiki_page(
+    wiki: str,
+    path: str,
+    content: str,
+    project: Optional[str] = None,
+    comment: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Create or update a wiki page with markdown content."""
+    client = _client()
+    return client.upsert_wiki_page(wiki=wiki, path=path, content=content, project=project, comment=comment)
+
+
+@mcp.tool()
+def update_wiki_page(
+    wiki: str,
+    path: str,
+    content: str,
+    project: Optional[str] = None,
+    comment: Optional[str] = None,
+    version: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Update an existing wiki page with markdown content.
+
+    Uses optimistic concurrency via If-Match. Optionally pass a specific
+    version/eTag to guard the update; if omitted, the current version is
+    fetched first.
+    """
+    client = _client()
+    return client.update_wiki_page(
+        wiki=wiki,
+        path=path,
+        content=content,
+        project=project,
+        comment=comment,
+        version=version,
+    )
+
+
+@mcp.tool()
+def delete_wiki_page(
+    wiki: str,
+    path: str,
+    project: Optional[str] = None,
+    comment: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Delete a wiki page by path."""
+    client = _client()
+    return client.delete_wiki_page(wiki=wiki, path=path, project=project, comment=comment)
+
+
 def main():
     # Allow simple logging control
     os.environ.setdefault("MCP_LOG_LEVEL", "INFO")
@@ -166,4 +256,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
