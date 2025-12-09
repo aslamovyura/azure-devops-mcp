@@ -1,61 +1,75 @@
-**Azure DevOps (On‑Prem) MCP Server**
+Azure DevOps (On-Prem) MCP Server
 
-- Python MCP server exposing tools to read and manage Azure DevOps Server (on‑prem) Boards work items (Tasks, Bugs, PBIs, User Stories).
+- Python MCP server exposing tools to read and manage Azure DevOps Server (on‑prem) Boards work items (Tasks, Bugs, PBIs, User Stories), Git Pull Requests, and Wiki pages.
 - Works with Codex agents (and any MCP client) over stdio.
 
-**Features**
+Features
 
-- List projects: `list_projects`
-- Search work items with WIQL: `search_work_items`
-- Get work item by id: `get_work_item`
-- Create task/user story/bug: `create_task`
-- Update fields/state/assignee/tags: `update_work_item`
-- Add history comment: `add_comment`
-- Assign work item: `assign_work_item`
-- Transition state: `transition_state`
-- Link work items: `link_work_items`
-- Azure DevOps Wiki tools (preview API):
+- Work Items (Boards):
+  - List projects: `list_projects`
+  - Search with WIQL: `search_work_items`
+  - Get work item: `get_work_item`
+  - Create: `create_task`
+  - Update fields/state/assignee/tags: `update_work_item`
+  - Add history comment: `add_comment`
+  - Assign: `assign_work_item`
+  - Transition state: `transition_state`
+  - Link items: `link_work_items`
+- Pull Requests (Git):
+  - List repositories: `list_repositories`
+  - List PRs: `list_pull_requests`
+  - Get PR: `get_pull_request`
+  - List PR commits: `list_pr_commits`
+  - List PR threads: `list_pr_threads`
+  - Comment on PR: `create_pr_comment`
+  - List reviewers: `list_pr_reviewers`
+  - Add reviewer: `add_pr_reviewer`
+  - Set reviewer vote: `set_reviewer_vote`
+  - Update PR: `update_pull_request`
+  - Complete PR: `complete_pull_request`
+  - Abandon PR: `abandon_pull_request`
+- Wiki (Preview API):
   - List wikis: `list_wikis`
-  - List wiki pages: `list_wiki_pages`
-  - Get wiki page: `get_wiki_page`
-  - Update wiki page: `update_wiki_page`
-  - Create/Update wiki page: `upsert_wiki_page`
-  - Delete wiki page: `delete_wiki_page`
+  - List pages: `list_wiki_pages`
+  - Get page: `get_wiki_page`
+  - Update page: `update_wiki_page`
+  - Upsert page: `upsert_wiki_page`
+  - Delete page: `delete_wiki_page`
 
-**Compatibility**
+Compatibility
 
-- Azure DevOps Server 2019+ (and most TFS/DevOps Server instances with PAT or NTLM auth).
+- Azure DevOps Server 2019+ (most TFS/DevOps Server instances with PAT or NTLM auth).
 - Auth: Personal Access Token (recommended) or NTLM (Windows Integrated).
 
-**Install (Poetry)**
+Install (Poetry)
 
-- Python 3.9+
-- Install Poetry (<https://python-poetry.org/>): `pip install poetry` or official installer
+- Python 3.12+
+- Install Poetry: `pip install poetry` or official installer
 - In repo root: `poetry install`
 - Run: `poetry run azure-devops-mcp`
 
-**Configure**
+Configure
 
-- Set these environment variables (e.g., in your shell profile or process env):
-  - `AZDO_BASE_URL`: Base URL to your server, e.g. `https://tfs.corp.local/tfs` or `https://devops.corp.local/tfs/DefaultCollection`
-  - `AZDO_COLLECTION`: Optional when not included in `AZDO_BASE_URL`, e.g. `DefaultCollection`
-  - `AZDO_PROJECT`: Default project name (used when not passed in tools)
-  - `AZDO_API_VERSION`: REST API version, default `7.0` (use a version supported by your server)
+- Required environment variables:
+  - `AZDO_BASE_URL`: Base URL, e.g. `https://devops.corp.local/tfs` (or include collection like `/tfs/DefaultCollection`)
+  - `AZDO_COLLECTION`: Optional if not included in `AZDO_BASE_URL` (e.g. `DefaultCollection`)
+  - `AZDO_PROJECT`: Default project name
+  - `AZDO_API_VERSION`: REST API version, default `7.0`
   - `AZDO_VERIFY_SSL`: `true|false`, default `true`
   - `AZDO_AUTH_TYPE`: `pat|ntlm`, default `pat`
-  - For PAT: `AZDO_PAT`: Personal Access Token with Work Items scope (Read & Write)
+  - For PAT: `AZDO_PAT` (scopes: Work Items read/write; for PRs Git read/write)
   - For NTLM: `AZDO_NTLM_USERNAME`, `AZDO_NTLM_PASSWORD`, optional `AZDO_NTLM_DOMAIN`
+- Git (Pull Requests):
+  - `AZDO_REPOSITORY`: Default repository name or ID
 
-Wiki endpoints use the Azure DevOps Wiki preview API (`7.1-preview.1`) internally and are compatible with DevOps Server versions that support Wiki REST endpoints. If your server requires a different preview version, update the code or open an issue.
+Examples
 
-Examples:
-
-- PAT on 2019/2020/2022:
+- PAT example:
   - `AZDO_BASE_URL=https://devops.corp.local/tfs`
   - `AZDO_COLLECTION=DefaultCollection`
   - `AZDO_PROJECT=MyProject`
   - `AZDO_PAT=xxxxxxxxxxxxxxxxxxxxxxxxxxxx`
-- NTLM (only if PAT unavailable):
+- NTLM example:
   - `AZDO_BASE_URL=https://tfs.corp.local/tfs/DefaultCollection`
   - `AZDO_PROJECT=Engineering`
   - `AZDO_AUTH_TYPE=ntlm`
@@ -63,142 +77,120 @@ Examples:
   - `AZDO_NTLM_PASSWORD=...`
   - `AZDO_NTLM_DOMAIN=CORP`
 
-**Run (manual)**
+Run (manual)
 
 - Start the MCP server via Poetry:
   - `poetry run azure-devops-mcp`
-  - Or, after `poetry config virtualenvs.create false && poetry install`, use: `azure-devops-mcp`
+  - Or, after `poetry config virtualenvs.create false && poetry install`, run `azure-devops-mcp`
 
-**Use with Codex agents**
+Use with Codex agents
 
-- Add a server entry to your Codex MCP configuration (example JSON snippet):
+- Add a server entry to your Codex MCP configuration:
   - `"mcpServers": { "azure-devops-mcp": { "command": "azure-devops-mcp" } }`
-- If your launcher doesn’t inherit env vars, wrap with Poetry to ensure the environment is correct:
+- If your launcher doesn’t inherit env vars, wrap with Poetry:
   - `"mcpServers": { "azure-devops-mcp": { "command": "poetry", "args": ["run", "azure-devops-mcp"] } }`
-- Ensure the above environment variables are set in the process starting Codex so the server inherits them.
-- Tools will appear to the agent as callable functions; pass parameters per tool signatures below.
+- Ensure the above environment variables are set in the process that launches the server.
 
-**Docker**
+Docker
 
-- Build:
-  - `docker build -t azure-devops-mcp:latest .`
-- Run (PowerShell example with PAT):
-  - `docker run --rm -it`
-    `-e AZDO_BASE_URL=https://devops.corp.local/tfs`
-    `-e AZDO_COLLECTION=DefaultCollection`
-    `-e AZDO_PROJECT=MyProject`
-    `-e AZDO_AUTH_TYPE=pat`
-    `-e AZDO_PAT=xxxxxxxxxxxxxxxxxxxxxxxxxxxx`
-    `azure-devops-mcp:latest`
+- Build: `docker build -t azure-devops-mcp:latest .`
+- Run (PAT example):
+  - `docker run --rm -it \
+     -e AZDO_BASE_URL=https://devops.corp.local/tfs \
+     -e AZDO_COLLECTION=DefaultCollection \
+     -e AZDO_PROJECT=MyProject \
+     -e AZDO_AUTH_TYPE=pat \
+     -e AZDO_PAT=xxxxxxxxxxxxxxxxxxxxxxxxxxxx \
+     -e AZDO_REPOSITORY=MyRepo \
+     azure-devops-mcp:latest`
 - Run (NTLM example):
-  - `docker run --rm -it`
-    `-e AZDO_BASE_URL=https://tfs.corp.local/tfs/DefaultCollection`
-    `-e AZDO_PROJECT=Engineering`
-    `-e AZDO_AUTH_TYPE=ntlm`
-    `-e AZDO_NTLM_USERNAME=jdoe`
-    `-e AZDO_NTLM_PASSWORD=...`
-    `-e AZDO_NTLM_DOMAIN=CORP`
-    `azure-devops-mcp:latest`
+  - `docker run --rm -it \
+     -e AZDO_BASE_URL=https://tfs.corp.local/tfs/DefaultCollection \
+     -e AZDO_PROJECT=Engineering \
+     -e AZDO_AUTH_TYPE=ntlm \
+     -e AZDO_NTLM_USERNAME=jdoe \
+     -e AZDO_NTLM_PASSWORD=... \
+     -e AZDO_NTLM_DOMAIN=CORP \
+     -e AZDO_REPOSITORY=MyRepo \
+     azure-devops-mcp:latest`
 
-Notes:
-
-- MCP servers typically run over stdio and are launched by the MCP client. Containerization is handy for standardizing dependencies and secrets. If Codex needs to spawn the server inside Docker, use a wrapper script or configure Codex to execute `docker run ...` as the command for this MCP server.
-
-**Docker Compose**
+Docker Compose
 
 - Copy env template and edit:
-  - `copy .env.example .env` (Windows) or `cp .env.example .env`
+  - Windows: `copy .env.example .env`
+  - macOS/Linux: `cp .env.example .env`
 - Build image: `docker compose build`
 - Run interactively: `docker compose run --rm azure-devops-mcp`
-- Use with Codex: set the MCP server command to `docker compose run --rm azure-devops-mcp` so Codex launches the server inside the container.
+- Use with Codex: set the MCP server command to `docker compose run --rm azure-devops-mcp`.
 
-Compose file: `docker-compose.yml:1`; Env template: `.env.example:1`
+Tools (signatures)
 
-**Wrapper Scripts (recommended for Codex)**
+- Work Items
+  - `list_projects()`
+  - `search_work_items(wiql, project?, top=50, expand="Relations")`
+  - `get_work_item(id, expand="All")`
+  - `create_task(project?, title, description?, assigned_to?, area_path?, iteration_path?, tags?, work_item_type="Task", state?)`
+  - `update_work_item(id, title?, description?, assigned_to?, state?, add_tags?, remove_tags?, fields?, comment?)`
+  - `add_comment(id, text)`
+  - `assign_work_item(id, assigned_to)`
+  - `transition_state(id, new_state)`
+  - `link_work_items(source_id, target_id, link_type="System.LinkTypes.Hierarchy-Forward")`
+- Pull Requests
+  - `list_repositories(project?)`
+  - `list_pull_requests(repository?, project?, status='active', creator_id?, reviewer_id?, target_ref_name?, source_ref_name?, top?)`
+  - `get_pull_request(pr_id, repository?, project?)`
+  - `list_pr_commits(pr_id, repository?, project?)`
+  - `list_pr_threads(pr_id, repository?, project?)`
+  - `create_pr_comment(pr_id, text, repository?, project?, file_path?, start_line?, end_line?)`
+  - `list_pr_reviewers(pr_id, repository?, project?)`
+  - `add_pr_reviewer(pr_id, reviewer_id, repository?, project?)`
+  - `set_reviewer_vote(pr_id, reviewer_id, vote, repository?, project?)`
+  - `update_pull_request(pr_id, repository?, project?, title?, description?, auto_complete_set?, completion_options?, status?)`
+  - `complete_pull_request(pr_id, repository?, project?, delete_source_branch?, merge_commit_message?, merge_strategy?, transition_work_items?, squash_merge?)`
+  - `abandon_pull_request(pr_id, repository?, project?)`
+- Wiki (Preview)
+  - `list_wikis(project?)`
+  - `list_wiki_pages(wiki, project?, path?, recursion_level?, include_content=false)`
+  - `get_wiki_page(wiki, path, project?, include_content=true)`
+  - `update_wiki_page(wiki, path, content, project?, comment?, version?)`
+  - `upsert_wiki_page(wiki, path, content, project?, comment?)`
+  - `delete_wiki_page(wiki, path, project?, comment?)`
 
-- Windows: `bin/azure-devops-mcp.cmd`
-  - Use in Codex config as the command: `"command": "bin/azure-devops-mcp.cmd"`
-- macOS/Linux: `bin/azure-devops-mcp.sh`
-  - Make executable once: `chmod +x bin/azure-devops-mcp.sh`
-  - Use in Codex config as the command: `"command": "bin/azure-devops-mcp.sh"`
-- Both wrappers run `docker compose run --rm azure-devops-mcp` from the repo root and load env from `.env`.
+On-Prem Notes
 
-**Tools**
+- Collections: Many on‑prem instances include a collection in the REST base path (e.g., `/tfs/DefaultCollection`). Set via `AZDO_COLLECTION` or include in `AZDO_BASE_URL`.
+- API Versions: Use a version supported by your server (e.g., 6.0, 7.0). If you see version errors, lower `AZDO_API_VERSION`.
+- Comments: For work items, comments are added via `System.History` updates for compatibility.
 
-- `list_projects()`
-  - Returns list of projects.
-- `search_work_items(wiql, project?, top=50, expand="Relations")`
-  - Runs a WIQL query in `project` (defaults to `AZDO_PROJECT`).
-  - Returns expanded work item docs. Example WIQL: `Select [System.Id] From WorkItems Where [System.TeamProject] = @project And [System.WorkItemType] = 'Task' Order By [System.ChangedDate] DESC`.
-- `get_work_item(id, expand="All")`
-  - Returns a single work item with fields/relations.
-- `create_task(project?, title, description?, assigned_to?, area_path?, iteration_path?, tags?, work_item_type="Task", state?)`
-  - Creates a work item (Task/Bug/User Story/PBI) in `project`.
-- `update_work_item(id, title?, description?, assigned_to?, state?, add_tags?, remove_tags?, fields?, comment?)`
-  - Sets fields/state/assignee; adds tags; appends a history comment.
-  - Note: selective tag removal requires reading/replacing tags; this server does not compute removals automatically.
-- `add_comment(id, text)`
-  - Adds a history entry to the work item.
-- `assign_work_item(id, assigned_to)`
-  - Assigns the item to a user display name or email.
-- `transition_state(id, new_state)`
-  - Moves the item to a new workflow state.
-- `link_work_items(source_id, target_id, link_type="System.LinkTypes.Hierarchy-Forward")`
-  - Creates a work item relation (default: parent->child).
+Permissions
 
-Wiki tools:
+- PAT scope: Work Items (Read & Write) at minimum; for PR tools include Git permissions; for Wiki tools include Wiki permissions as required.
+- Ensure project permissions allow editing work items and completing PRs.
 
-- `list_wikis(project?)`
-  - Lists wikis for the given `project` (defaults to `AZDO_PROJECT` when set).
-- `list_wiki_pages(wiki, project?, path?, recursion_level?, include_content=false)`
-  - Lists pages in a `wiki` (by name or ID). Optional `path` to scope, `recursion_level`=`oneLevel|full|none`.
-- `get_wiki_page(wiki, path, project?, include_content=true)`
-  - Gets a single page by `path`. Returns page metadata and, when requested, the `content` field.
-- `update_wiki_page(wiki, path, content, project?, comment?, version?)`
-  - Updates an existing page with markdown `content`. Uses optimistic concurrency via `If-Match`; if `version` (or eTag) is not provided, the server fetches the current version first.
-- `upsert_wiki_page(wiki, path, content, project?, comment?)`
-  - Creates or updates a page with markdown `content`. Optional `comment` as the edit message.
-- `delete_wiki_page(wiki, path, project?, comment?)`
-  - Deletes a page by `path`. Optional `comment` as the delete message.
+Troubleshooting
 
-**On‑Prem Notes**
-
-- Collections: On many on‑prem instances the REST path includes a collection (e.g., `.../tfs/DefaultCollection`). You can set this via `AZDO_COLLECTION` or include it in `AZDO_BASE_URL`.
-- API Versions: Use a version supported by your server: Azure DevOps Server 2020 usually supports `6.0` and `7.0` preview; 2022+ supports `7.0`. If you see version errors, lower `AZDO_API_VERSION`.
-- Comments: For broad compatibility, comments are added via `System.History` field updates.
-
-**Permissions**
-
-- PAT scope: Work Items (Read & Write) at minimum; for Wiki tools add Wiki permissions as required by your instance.
-- Assigning/updating items also requires project permissions (e.g., edit work items in this node).
-
-**Troubleshooting**
-
-- Authentication failures:
-  - PAT: ensure PAT is valid and not expired; try a browser REST call with the same PAT.
+- Auth failures:
+  - PAT: verify PAT validity; try a REST call in a browser.
   - NTLM: confirm domain\username and password; test with `curl --ntlm`.
 - API version errors: adjust `AZDO_API_VERSION` (e.g., `6.0`, `7.0`).
 - SSL/PKI issues: set `AZDO_VERIFY_SSL=false` for test environments or install your enterprise root CA.
 
-**Development**
+Development
 
 - Install: `poetry install`
-- Run with logging: `set MCP_LOG_LEVEL=DEBUG` (Windows) then `poetry run azure-devops-mcp`
+- Run with logging: set `MCP_LOG_LEVEL=DEBUG` then `poetry run azure-devops-mcp`
 - Code layout:
-  - `src/azure_devops_mcp/server.py`: MCP server entry and tool definitions
-  - `src/azure_devops_mcp/ado_client.py`: minimal Azure DevOps REST client (PAT/NTLM)
-  - `src/azure_devops_mcp/config.py`: environment configuration loader
+  - `src/azure_devops_mcp/server.py`
+  - `src/azure_devops_mcp/ado_client.py`
+  - `src/azure_devops_mcp/config.py`
 
-**Locking & Reproducibility**
+Locking & Reproducibility
 
-- Generate lock file: `poetry lock` (or use helpers `scripts/generate-lock.ps1` / `scripts/generate-lock.sh`)
-- Commit `poetry.lock` for deterministic installs. The Dockerfile already copies `poetry.lock*` to leverage layer caching and reproducible dependency resolution.
+- Generate lock file: `poetry lock` (or use helper scripts in `scripts/` if present)
+- Commit `poetry.lock` for deterministic installs. The Dockerfile copies `poetry.lock*` to leverage layer caching.
 
-**Security**
+Security
 
 - Store PATs securely (OS keychain/secret manager). Avoid committing env values.
 - Prefer PAT over NTLM for service integrations.
 
-**License**
-
-- Provided as‑is, no warranty. Use within your organization as appropriate.

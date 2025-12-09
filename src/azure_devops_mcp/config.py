@@ -8,6 +8,7 @@ class AzureDevOpsConfig:
     base_url: str
     collection: Optional[str]
     default_project: Optional[str]
+    default_repository: Optional[str]
     api_version: str
     auth_type: str  # "pat" or "ntlm"
     pat: Optional[str]
@@ -26,6 +27,7 @@ class AzureDevOpsConfig:
 
         collection = os.environ.get("AZDO_COLLECTION")
         default_project = os.environ.get("AZDO_PROJECT")
+        default_repository = os.environ.get("AZDO_REPOSITORY") or os.environ.get("AZDO_REPO")
         api_version = os.environ.get("AZDO_API_VERSION", "7.0")
         auth_type = os.environ.get("AZDO_AUTH_TYPE", "pat").lower()
 
@@ -46,6 +48,7 @@ class AzureDevOpsConfig:
             base_url=base_url,
             collection=collection,
             default_project=default_project,
+            default_repository=default_repository,
             api_version=api_version,
             auth_type=auth_type,
             pat=pat,
@@ -54,4 +57,3 @@ class AzureDevOpsConfig:
             ntlm_domain=ntlm_domain,
             verify_ssl=verify_ssl,
         )
-

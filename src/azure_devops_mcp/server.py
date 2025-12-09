@@ -158,6 +158,191 @@ def link_work_items(
     return client.link_work_items(source_id, target_id, link_type)
 
 
+# Git: Repositories
+@mcp.tool()
+def list_repositories(project: Optional[str] = None) -> List[Dict[str, Any]]:
+    """List Git repositories for a project."""
+    client = _client()
+    return client.list_repositories(project=project)
+
+
+# Git: Pull Requests
+@mcp.tool()
+def list_pull_requests(
+    repository: Optional[str] = None,
+    project: Optional[str] = None,
+    status: str = "active",
+    creator_id: Optional[str] = None,
+    reviewer_id: Optional[str] = None,
+    target_ref_name: Optional[str] = None,
+    source_ref_name: Optional[str] = None,
+    top: Optional[int] = 25,
+) -> List[Dict[str, Any]]:
+    """List pull requests in a repository with optional filters."""
+    client = _client()
+    return client.list_pull_requests(
+        repository=repository,
+        project=project,
+        status=status,
+        creator_id=creator_id,
+        reviewer_id=reviewer_id,
+        target_ref_name=target_ref_name,
+        source_ref_name=source_ref_name,
+        top=top,
+    )
+
+
+@mcp.tool()
+def get_pull_request(
+    pr_id: int,
+    repository: Optional[str] = None,
+    project: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Get a single pull request."""
+    client = _client()
+    return client.get_pull_request(pr_id, repository=repository, project=project)
+
+
+@mcp.tool()
+def list_pr_commits(
+    pr_id: int,
+    repository: Optional[str] = None,
+    project: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """List commits included in a pull request."""
+    client = _client()
+    return client.list_pr_commits(pr_id, repository=repository, project=project)
+
+
+@mcp.tool()
+def list_pr_threads(
+    pr_id: int,
+    repository: Optional[str] = None,
+    project: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """List discussion threads for a pull request."""
+    client = _client()
+    return client.list_pr_threads(pr_id, repository=repository, project=project)
+
+
+@mcp.tool()
+def create_pr_comment(
+    pr_id: int,
+    text: str,
+    repository: Optional[str] = None,
+    project: Optional[str] = None,
+    file_path: Optional[str] = None,
+    start_line: Optional[int] = None,
+    end_line: Optional[int] = None,
+) -> Dict[str, Any]:
+    """Create a PR comment (optionally file/line-scoped)."""
+    client = _client()
+    return client.create_pr_comment(
+        pr_id,
+        text,
+        repository=repository,
+        project=project,
+        file_path=file_path,
+        start_line=start_line,
+        end_line=end_line,
+    )
+
+
+@mcp.tool()
+def list_pr_reviewers(
+    pr_id: int,
+    repository: Optional[str] = None,
+    project: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """List reviewers and their vote states."""
+    client = _client()
+    return client.list_pr_reviewers(pr_id, repository=repository, project=project)
+
+
+@mcp.tool()
+def add_pr_reviewer(
+    pr_id: int,
+    reviewer_id: str,
+    repository: Optional[str] = None,
+    project: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Add a reviewer to a pull request by identity ID."""
+    client = _client()
+    return client.add_pr_reviewer(pr_id, reviewer_id, repository=repository, project=project)
+
+
+@mcp.tool()
+def set_reviewer_vote(
+    pr_id: int,
+    reviewer_id: str,
+    vote: int,
+    repository: Optional[str] = None,
+    project: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Set a reviewer's vote on a PR. Votes: -10, -5, 0, 5, 10."""
+    client = _client()
+    return client.set_reviewer_vote(pr_id, reviewer_id, vote, repository=repository, project=project)
+
+
+@mcp.tool()
+def update_pull_request(
+    pr_id: int,
+    repository: Optional[str] = None,
+    project: Optional[str] = None,
+    title: Optional[str] = None,
+    description: Optional[str] = None,
+    auto_complete_set: Optional[bool] = None,
+    completion_options: Optional[Dict[str, Any]] = None,
+    status: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Update a pull request title/description/auto-complete/options/status."""
+    client = _client()
+    return client.update_pull_request(
+        pr_id,
+        repository=repository,
+        project=project,
+        title=title,
+        description=description,
+        auto_complete_set=auto_complete_set,
+        completion_options=completion_options,
+        status=status,
+    )
+
+
+@mcp.tool()
+def complete_pull_request(
+    pr_id: int,
+    repository: Optional[str] = None,
+    project: Optional[str] = None,
+    delete_source_branch: Optional[bool] = None,
+    merge_commit_message: Optional[str] = None,
+    merge_strategy: Optional[str] = None,
+    transition_work_items: Optional[bool] = None,
+    squash_merge: Optional[bool] = None,
+) -> Dict[str, Any]:
+    """Complete (merge) a pull request with optional completion options."""
+    client = _client()
+    return client.complete_pull_request(
+        pr_id,
+        repository=repository,
+        project=project,
+        delete_source_branch=delete_source_branch,
+        merge_commit_message=merge_commit_message,
+        merge_strategy=merge_strategy,
+        transition_work_items=transition_work_items,
+        squash_merge=squash_merge,
+    )
+
+
+@mcp.tool()
+def abandon_pull_request(
+    pr_id: int,
+    repository: Optional[str] = None,
+    project: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Abandon (close without merging) a pull request."""
+    client = _client()
+    return client.abandon_pull_request(pr_id, repository=repository, project=project)
 # Wiki tools
 @mcp.tool()
 def list_wikis(project: Optional[str] = None) -> List[Dict[str, Any]]:
