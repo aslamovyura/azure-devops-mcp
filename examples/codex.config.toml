@@ -1,0 +1,3 @@
+[mcp_servers.azure-devops]
+enabled = true                                                                                              
+command = "C:\\__Projects__\\MCP\\azure-devops-mcp\\bin\\azure-devops-mcp.cmd"

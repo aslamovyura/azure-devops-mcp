@@ -1,0 +1,12 @@
+services:
+  azure-devops-mcp:
+    build:
+      context: .
+    container_name: azure-devops-mcp
+    image: azure-devops-mcp:latest
+    env_file:
+      - .env
+    stdin_open: true
+    tty: true
+    # MCP runs over stdio; the container prints/reads via the console.
+    entrypoint: ["azure-devops-mcp"]
