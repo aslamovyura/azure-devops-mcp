@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "azure-devops-mcp": {
+      "command": "azure-devops-mcp"
+    }
+  }
+}
+

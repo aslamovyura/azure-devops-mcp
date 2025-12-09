@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "azure-devops-mcp"
+version = "0.1.0"
+description = "MCP server for Azure DevOps (on-prem) boards: list, create, update tasks"
+authors = ["Azure DevOps MCP"]
+readme = "README.md"
+packages = [
+  { include = "azure_devops_mcp", from = "src" }
+]
+
+[tool.poetry.dependencies]
+python = ">=3.12"
+modelcontextprotocol = ">=0.2.0"
+requests = ">=2.31.0"
+requests-ntlm = ">=1.2.0"
+
+[tool.poetry.scripts]
+azure-devops-mcp = "azure_devops_mcp.server:main"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
