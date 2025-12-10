@@ -19,6 +19,7 @@ Features
   - List repositories: `list_repositories`
   - List PRs: `list_pull_requests`
   - Get PR: `get_pull_request`
+  - Get PR diffs: `get_pr_diffs`
   - List PR commits: `list_pr_commits`
   - List PR threads: `list_pr_threads`
   - Comment on PR: `create_pr_comment`
@@ -146,6 +147,7 @@ Tools (signatures)
   - `list_repositories(project?)`
   - `list_pull_requests(repository?, project?, status='active', creator_id?, reviewer_id?, target_ref_name?, source_ref_name?, top?)`
   - `get_pull_request(pr_id, repository?, project?)`
+  - `get_pr_diffs(pr_id, repository?, project?, include_content=false, top?, skip?)`
   - `list_pr_commits(pr_id, repository?, project?)`
   - `list_pr_threads(pr_id, repository?, project?)`
   - `create_pr_comment(pr_id, text, repository?, project?, file_path?, start_line?, end_line?)`

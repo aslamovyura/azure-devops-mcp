@@ -483,6 +483,76 @@ class AzureDevOpsClient:
         data = self._get(url)
         return data.get("value", [])
 
+    def get_pr_diffs(
+        self,
+        pr_id: int,
+        repository: Optional[str] = None,
+        project: Optional[str] = None,
+        include_content: bool = False,
+        top: Optional[int] = None,
+        skip: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """Return file diffs for a pull request by comparing source and target refs.
+
+        Uses the Git diffs API with branch versions derived from the PR's
+        source/target refs. When ``include_content`` is True, servers that
+        support it will include hunk-level diff details; otherwise a file-level
+        change list is returned.
+        """
+        proj = project or self.cfg.default_project
+        repo = repository or self.cfg.default_repository
+        if not proj:
+            raise AzureDevOpsError("Project is required (set AZDO_PROJECT or pass project)")
+        if not repo:
+            raise AzureDevOpsError("Repository is required (set AZDO_REPOSITORY or pass repository)")
+
+        pr = self.get_pull_request(pr_id, repository=repo, project=proj)
+        source_ref = (pr.get("sourceRefName") or "").strip()
+        target_ref = (pr.get("targetRefName") or "").strip()
+        if not source_ref or not target_ref:
+            raise AzureDevOpsError("PR missing source/target refs; cannot compute diff")
+
+        url = self._api(f"/_apis/git/repositories/{repo}/diffs/commits", project=proj)
+
+        def _build_params(base_type: str, base: str, target_type: str, target: str) -> Dict[str, Any]:
+            p: Dict[str, Any] = {
+                "baseVersionType": base_type,
+                "baseVersion": base,
+                "targetVersionType": target_type,
+                "targetVersion": target,
+            }
+            # Best-effort toggles; ignored by servers that don't support them
+            if include_content:
+                # Some servers honor includeContent or includeDetails; include both for compatibility
+                p["includeContent"] = "true"
+                p["includeDetails"] = "true"
+            if top is not None:
+                p["$top"] = top
+            if skip is not None:
+                p["$skip"] = skip
+            return p
+
+        # Try with branches first
+        params = _build_params("branch", target_ref, "branch", source_ref)
+        try:
+            return self._get(url, params=params)
+        except AzureDevOpsError as e:
+            msg = str(e)
+            # Fallback when branches cannot be resolved (e.g., deleted, different repo, or on-prem quirks)
+            indicators = (
+                "GitUnresolvableToCommitException",
+                "TF401175",
+                "could not be resolved",
+            )
+            if any(ind in msg for ind in indicators):
+                src_commit = ((pr.get("lastMergeSourceCommit") or {}).get("commitId") or "").strip()
+                tgt_commit = ((pr.get("lastMergeTargetCommit") or {}).get("commitId") or "").strip()
+                if src_commit and tgt_commit:
+                    commit_params = _build_params("commit", tgt_commit, "commit", src_commit)
+                    return self._get(url, params=commit_params)
+            # If not recognized or no commits available, re-raise original error
+            raise
+
     def create_pr_comment(
         self,
         pr_id: int,

@@ -193,6 +193,31 @@ def list_pull_requests(
 
 
 @mcp.tool()
+def get_pr_diffs(
+    pr_id: int,
+    repository: Optional[str] = None,
+    project: Optional[str] = None,
+    include_content: bool = False,
+    top: Optional[int] = None,
+    skip: Optional[int] = None,
+) -> Dict[str, Any]:
+    """Get diffs of the code in a Pull Request.
+
+    Returns the Azure DevOps Git diffs payload comparing PR source/target refs.
+    Set `include_content=true` to request hunk details when supported.
+    """
+    client = _client()
+    return client.get_pr_diffs(
+        pr_id,
+        repository=repository,
+        project=project,
+        include_content=include_content,
+        top=top,
+        skip=skip,
+    )
+
+
+@mcp.tool()
 def get_pull_request(
     pr_id: int,
     repository: Optional[str] = None,
