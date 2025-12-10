@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 from typing import Any, Dict, List, Optional
+from urllib.parse import quote
 
 import requests
 from requests_ntlm import HttpNtlmAuth
@@ -41,13 +42,17 @@ class AzureDevOpsClient:
     def _collection_prefix(self) -> str:
         # On-prem often at {base}/tfs/{collection}; allow users to include collection in base or as separate var
         if self.cfg.collection:
-            return f"{self.cfg.base_url}/{self.cfg.collection.strip('/') }"
+            # URL-encode collection path segment to handle spaces/special chars
+            coll = quote(self.cfg.collection.strip('/'), safe='')
+            return f"{self.cfg.base_url}/{coll}"
         return self.cfg.base_url
 
     def _api(self, path: str, project: Optional[str] = None, params: Optional[Dict[str, Any]] = None) -> str:
         base = self._collection_prefix()
         if project:
-            base = f"{base}/{project.strip('/')}"
+            # URL-encode project path segment to handle spaces/special chars
+            enc_proj = quote(project.strip('/'), safe='')
+            base = f"{base}/{enc_proj}"
         if not path.startswith("/"):
             path = "/" + path
         # Always include api-version if not present in params
@@ -58,7 +63,17 @@ class AzureDevOpsClient:
 
     def _ensure_params(self, params: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         p = dict(params or {})
-        p.setdefault("api-version", self.cfg.api_version)
+        # Respect explicit opt-out: if caller passes api-version as None/empty/'none', omit it entirely
+        if "api-version" in p:
+            val = p.get("api-version")
+            if val is None or (isinstance(val, str) and val.strip().lower() in ("", "none")):
+                p.pop("api-version", None)
+                return p
+        # Only add api-version if not already provided and configured value is set
+        if "api-version" not in p:
+            v = (self.cfg.api_version or "").strip()
+            if v and v.lower() != "none":
+                p["api-version"] = v
         return p
 
     # Basic HTTP helpers
@@ -111,6 +126,12 @@ class AzureDevOpsClient:
             return resp.json()
         except Exception:
             return {"status": resp.status_code}
+
+    def _get_raw(self, url: str, params: Optional[Dict[str, Any]] = None) -> bytes:
+        resp = self.session.get(url, params=self._ensure_params(params), stream=False)
+        if not resp.ok:
+            raise AzureDevOpsError(f"GET {url} failed: {resp.status_code} {resp.text}")
+        return resp.content
 
     # Public API
     def list_projects(self) -> List[Dict[str, Any]]:
@@ -223,6 +244,197 @@ class AzureDevOpsClient:
             params["$top"] = top
         data = self._get(url, params=params)
         return data.get("value", [])
+
+    # Test: Plans, Suites, Cases
+    def list_test_plans(self, project: Optional[str] = None) -> List[Dict[str, Any]]:
+        """List test plans for a project."""
+        proj = project or self.cfg.default_project
+        if not proj:
+            raise AzureDevOpsError("Project is required (set AZDO_PROJECT or pass project)")
+        url = self._api("/_apis/test/plans", project=proj)
+        # Omit api-version for compatibility with some on-prem servers
+        data = self._get(url, params={"api-version": None})
+        return data.get("value", [])
+
+    def list_test_suites(self, plan_id: int, project: Optional[str] = None) -> List[Dict[str, Any]]:
+        """List test suites under a test plan."""
+        proj = project or self.cfg.default_project
+        if not proj:
+            raise AzureDevOpsError("Project is required (set AZDO_PROJECT or pass project)")
+        url = self._api(f"/_apis/test/plans/{plan_id}/suites", project=proj)
+        data = self._get(url, params={"api-version": None})
+        return data.get("value", [])
+
+    def list_test_cases(
+        self,
+        plan_id: int,
+        suite_id: int,
+        project: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """List test cases assigned to a suite within a plan.
+
+        Returns lightweight test case references (work item IDs). Use get_work_item
+        to fetch full details of the underlying Test Case work item.
+        """
+        proj = project or self.cfg.default_project
+        if not proj:
+            raise AzureDevOpsError("Project is required (set AZDO_PROJECT or pass project)")
+        url = self._api(f"/_apis/test/plans/{plan_id}/suites/{suite_id}/testcases", project=proj)
+        data = self._get(url, params={"api-version": None})
+        return data.get("value", [])
+
+    def add_test_case_to_suite(
+        self,
+        plan_id: int,
+        suite_id: int,
+        test_case_id: int,
+        project: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Add a test case (by work item id) to a test suite."""
+        proj = project or self.cfg.default_project
+        if not proj:
+            raise AzureDevOpsError("Project is required (set AZDO_PROJECT or pass project)")
+        url = self._api(
+            f"/_apis/test/plans/{plan_id}/suites/{suite_id}/testcases/{test_case_id}",
+            project=proj,
+        )
+        # The API accepts empty body for this POST
+        return self._post(url, json={}, params={"api-version": None})
+
+    def remove_test_case_from_suite(
+        self,
+        plan_id: int,
+        suite_id: int,
+        test_case_id: int,
+        project: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Remove a test case from a test suite."""
+        proj = project or self.cfg.default_project
+        if not proj:
+            raise AzureDevOpsError("Project is required (set AZDO_PROJECT or pass project)")
+        url = self._api(
+            f"/_apis/test/plans/{plan_id}/suites/{suite_id}/testcases/{test_case_id}",
+            project=proj,
+        )
+        return self._delete(url, params={"api-version": None})
+
+    def create_test_case(
+        self,
+        project: str,
+        title: str,
+        description: Optional[str] = None,
+        assigned_to: Optional[str] = None,
+        area_path: Optional[str] = None,
+        iteration_path: Optional[str] = None,
+        tags: Optional[List[str]] = None,
+        state: Optional[str] = None,
+        extra_fields: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Create a Test Case work item with common fields.
+
+        Note: authoring rich test steps requires XML in Microsoft.VSTS.TCM.Steps.
+        This helper focuses on basic creation; advanced fields can be passed via extra_fields.
+        """
+        fields = self.build_fields(
+            title=title or "Untitled",
+            description=description,
+            assigned_to=assigned_to,
+            state=state,
+            area_path=area_path,
+            iteration_path=iteration_path,
+            tags=tags,
+            extra=extra_fields,
+        )
+        return self.create_work_item(project, "Test Case", fields)
+
+    # Enrichment helpers
+    def get_test_case_work_item(self, id: int) -> Dict[str, Any]:
+        """Fetch a Test Case work item with full expansion."""
+        return self.get_work_item(id, expand="All")
+
+    @staticmethod
+    def parse_test_steps_xml(steps_xml: Optional[str]) -> List[Dict[str, Any]]:
+        """Best-effort parse of Azure DevOps test steps XML into action/expected pairs.
+
+        The underlying schema may vary across server versions. This parser aims to
+        extract a useful structure without strict schema dependency.
+        """
+        if not steps_xml:
+            return []
+        try:
+            import xml.etree.ElementTree as ET
+
+            # Ensure a single root element
+            text = steps_xml.strip()
+            if not text.startswith("<"):
+                return []
+            root = ET.fromstring(text)
+            steps: List[Dict[str, Any]] = []
+            # Typical structure: <steps><step> <parameterizedString>Action</paramStr> <parameterizedString>Expected</paramStr>
+            for step in root.findall('.//step'):
+                pstrs = [ps.text or "" for ps in step.findall('./parameterizedString')]
+                action = pstrs[0] if len(pstrs) >= 1 else ""
+                expected = pstrs[1] if len(pstrs) >= 2 else ""
+                steps.append({"action": action, "expected": expected})
+            # Fallback: older schema may use <description> and <expected>
+            if not steps:
+                for step in root.findall('.//step'):
+                    action = ""
+                    expected = ""
+                    desc = step.find('./description')
+                    if desc is not None and desc.text:
+                        action = desc.text
+                    exp = step.find('./expected')
+                    if exp is not None and exp.text:
+                        expected = exp.text
+                    if action or expected:
+                        steps.append({"action": action, "expected": expected})
+            return steps
+        except Exception:
+            # Parsing best-effort; on failure return no structured steps
+            return []
+
+    @staticmethod
+    def extract_attachments_from_work_item(work_item: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Return attachment metadata from work item relations (name + URL)."""
+        atts: List[Dict[str, Any]] = []
+        rels = work_item.get('relations') or []
+        for r in rels:
+            if isinstance(r, dict) and r.get('rel') == 'AttachedFile':
+                atts.append({
+                    'name': (r.get('attributes') or {}).get('name'),
+                    'url': r.get('url'),
+                })
+        return atts
+
+    def download_attachment(self, attachment_url: str) -> bytes:
+        """Download attachment bytes via attachment URL from work item relation."""
+        # The attachment URL is a fully-qualified API URL; do not add base
+        return self._get_raw(attachment_url, params={"api-version": self.cfg.api_version})
+
+    def get_suite_test_case_work_items(
+        self,
+        plan_id: int,
+        suite_id: int,
+        project: Optional[str] = None,
+        expand: Optional[str] = "Fields",
+    ) -> List[Dict[str, Any]]:
+        """Fetch work items for test cases in a suite (batch)."""
+        refs = self.list_test_cases(plan_id, suite_id, project=project)
+        ids: List[int] = []
+        for it in refs:
+            if not isinstance(it, dict):
+                continue
+            wid = None
+            if isinstance(it.get('workItem'), dict):
+                wid = it['workItem'].get('id')
+            if wid is None:
+                wid = (it.get('id') if isinstance(it.get('id'), int) else None)
+            if wid is None and isinstance(it.get('testCase'), dict):
+                wid = it['testCase'].get('id')
+            if isinstance(wid, int):
+                ids.append(wid)
+        return self.get_work_items(ids, expand=expand or None)
 
     def get_pull_request(
         self,
@@ -439,7 +651,7 @@ class AzureDevOpsClient:
         Uses preview API version for broader compatibility with Wiki endpoints.
         """
         url = self._api("/_apis/wiki/wikis", project=project or self.cfg.default_project)
-        params = {"api-version": "7.1-preview.1"}
+        params = {"api-version": "7.1"}
         data = self._get(url, params=params)
         return data.get("value", [])
 
@@ -459,7 +671,7 @@ class AzureDevOpsClient:
         if not proj:
             raise AzureDevOpsError("Project is required (set AZDO_PROJECT or pass project)")
         url = self._api(f"/_apis/wiki/wikis/{wiki}/pages", project=proj)
-        params: Dict[str, Any] = {"api-version": "7.1-preview.1"}
+        params: Dict[str, Any] = {"api-version": "7.1"}
         if path:
             params["path"] = path
         if recursion_level:
@@ -480,7 +692,7 @@ class AzureDevOpsClient:
         if not proj:
             raise AzureDevOpsError("Project is required (set AZDO_PROJECT or pass project)")
         url = self._api(f"/_apis/wiki/wikis/{wiki}/pages", project=proj)
-        params: Dict[str, Any] = {"api-version": "7.1-preview.1", "path": path}
+        params: Dict[str, Any] = {"api-version": "7.1", "path": path}
         if include_content:
             params["includeContent"] = "true"
         return self._get(url, params=params)
@@ -498,7 +710,7 @@ class AzureDevOpsClient:
         if not proj:
             raise AzureDevOpsError("Project is required (set AZDO_PROJECT or pass project)")
         url = self._api(f"/_apis/wiki/wikis/{wiki}/pages", project=proj)
-        params: Dict[str, Any] = {"api-version": "7.1-preview.1", "path": path}
+        params: Dict[str, Any] = {"api-version": "7.1", "path": path}
         body: Dict[str, Any] = {"content": content}
         if comment:
             body["comment"] = comment
@@ -527,7 +739,7 @@ class AzureDevOpsClient:
         current_version: Optional[str] = version
         if current_version is None:
             url_get = self._api(f"/_apis/wiki/wikis/{wiki}/pages", project=proj)
-            params_get: Dict[str, Any] = {"api-version": "7.1-preview.1", "path": path}
+            params_get: Dict[str, Any] = {"api-version": "7.1", "path": path}
             page = self._get(url_get, params=params_get)
             # Azure DevOps typically returns eTag for pages; fall back to version if present
             current_version = (
@@ -538,7 +750,7 @@ class AzureDevOpsClient:
                 raise AzureDevOpsError("Unable to determine current page version; pass version explicitly")
 
         url_put = self._api(f"/_apis/wiki/wikis/{wiki}/pages", project=proj)
-        params_put: Dict[str, Any] = {"api-version": "7.1-preview.1", "path": path}
+        params_put: Dict[str, Any] = {"api-version": "7.1", "path": path}
         body: Dict[str, Any] = {"content": content}
         if comment:
             body["comment"] = comment
@@ -558,7 +770,7 @@ class AzureDevOpsClient:
         if not proj:
             raise AzureDevOpsError("Project is required (set AZDO_PROJECT or pass project)")
         url = self._api(f"/_apis/wiki/wikis/{wiki}/pages", project=proj)
-        params: Dict[str, Any] = {"api-version": "7.1-preview.1", "path": path}
+        params: Dict[str, Any] = {"api-version": "7.1", "path": path}
         if comment:
             params["comment"] = comment
         return self._delete(url, params=params)

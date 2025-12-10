@@ -343,6 +343,146 @@ def abandon_pull_request(
     """Abandon (close without merging) a pull request."""
     client = _client()
     return client.abandon_pull_request(pr_id, repository=repository, project=project)
+
+# Test tools
+@mcp.tool()
+def list_test_plans(project: Optional[str] = None) -> List[Dict[str, Any]]:
+    """List test plans for a project."""
+    client = _client()
+    return client.list_test_plans(project=project)
+
+
+@mcp.tool()
+def list_test_suites(plan_id: int, project: Optional[str] = None) -> List[Dict[str, Any]]:
+    """List test suites under a test plan."""
+    client = _client()
+    return client.list_test_suites(plan_id, project=project)
+
+
+@mcp.tool()
+def list_test_cases(
+    plan_id: int,
+    suite_id: int,
+    project: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """List test cases assigned to a suite within a plan."""
+    client = _client()
+    return client.list_test_cases(plan_id, suite_id, project=project)
+
+
+@mcp.tool()
+def create_test_case(
+    project: Optional[str] = None,
+    title: str = "",
+    description: str = "",
+    assigned_to: Optional[str] = None,
+    area_path: Optional[str] = None,
+    iteration_path: Optional[str] = None,
+    tags: Optional[List[str]] = None,
+    state: Optional[str] = None,
+    extra_fields: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Create a Test Case work item with common fields."""
+    client = _client()
+    proj = project or client.cfg.default_project
+    if not proj:
+        raise AzureDevOpsError("Project is required (set AZDO_PROJECT or pass project)")
+    return client.create_test_case(
+        project=proj,
+        title=title or "Untitled",
+        description=description or None,
+        assigned_to=assigned_to,
+        area_path=area_path,
+        iteration_path=iteration_path,
+        tags=tags,
+        state=state,
+        extra_fields=extra_fields,
+    )
+
+
+@mcp.tool()
+def add_test_case_to_suite(
+    plan_id: int,
+    suite_id: int,
+    test_case_id: int,
+    project: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Add a test case (by work item id) to a test suite."""
+    client = _client()
+    return client.add_test_case_to_suite(plan_id, suite_id, test_case_id, project=project)
+
+
+@mcp.tool()
+def remove_test_case_from_suite(
+    plan_id: int,
+    suite_id: int,
+    test_case_id: int,
+    project: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Remove a test case from a test suite."""
+    client = _client()
+    return client.remove_test_case_from_suite(plan_id, suite_id, test_case_id, project=project)
+
+
+@mcp.tool()
+def get_suite_test_case_work_items(
+    plan_id: int,
+    suite_id: int,
+    project: Optional[str] = None,
+    expand: Optional[str] = "Fields",
+) -> List[Dict[str, Any]]:
+    """Return underlying Test Case work items for cases in a suite (batch)."""
+    client = _client()
+    return client.get_suite_test_case_work_items(plan_id, suite_id, project=project, expand=expand)
+
+
+@mcp.tool()
+def get_test_case_steps_from_work_item(work_item: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Parse and extract test steps from a Test Case work item fields.
+
+    Looks at `Microsoft.VSTS.TCM.Steps` field, parses the XML, and returns
+    a simplified list of {action, expected} pairs. Returns empty list on
+    missing or unparsable steps.
+    """
+    steps_xml = None
+    fields = work_item.get('fields') if isinstance(work_item, dict) else None
+    if isinstance(fields, dict):
+        steps_xml = fields.get('Microsoft.VSTS.TCM.Steps')
+    client = _client()
+    return client.parse_test_steps_xml(steps_xml)
+
+
+@mcp.tool()
+def list_work_item_attachments(work_item: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """List attachment metadata (name + URL) from a work item document."""
+    client = _client()
+    return client.extract_attachments_from_work_item(work_item)
+
+
+@mcp.tool()
+def download_attachment(url: str) -> str:
+    """Download an attachment by its relation URL and return as base64 string."""
+    import base64
+    client = _client()
+    data = client.download_attachment(url)
+    return base64.b64encode(data).decode('ascii')
+
+
+@mcp.tool()
+def get_test_case_work_item(id: int, expand: Optional[str] = "All") -> Dict[str, Any]:
+    """Get a single Test Case work item by id (expanded)."""
+    client = _client()
+    return client.get_test_case_work_item(id)
+
+
+@mcp.tool()
+def get_test_case_steps(id: int) -> List[Dict[str, Any]]:
+    """Fetch a Test Case work item and extract its steps as {action, expected}."""
+    client = _client()
+    wi = client.get_test_case_work_item(id)
+    fields = wi.get('fields') if isinstance(wi, dict) else None
+    steps_xml = (fields or {}).get('Microsoft.VSTS.TCM.Steps') if isinstance(fields, dict) else None
+    return client.parse_test_steps_xml(steps_xml)
 # Wiki tools
 @mcp.tool()
 def list_wikis(project: Optional[str] = None) -> List[Dict[str, Any]]:

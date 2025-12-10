@@ -35,6 +35,13 @@ Features
   - Update page: `update_wiki_page`
   - Upsert page: `upsert_wiki_page`
   - Delete page: `delete_wiki_page`
+ - Test Plans/Suites/Cases (Preview API):
+  - List test plans: `list_test_plans`
+  - List suites in plan: `list_test_suites`
+  - List cases in suite: `list_test_cases`
+  - Create Test Case: `create_test_case`
+  - Add case to suite: `add_test_case_to_suite`
+  - Remove case from suite: `remove_test_case_from_suite`
 
 Compatibility
 
@@ -155,6 +162,13 @@ Tools (signatures)
   - `update_wiki_page(wiki, path, content, project?, comment?, version?)`
   - `upsert_wiki_page(wiki, path, content, project?, comment?)`
   - `delete_wiki_page(wiki, path, project?, comment?)`
+ - Test (Preview)
+  - `list_test_plans(project?)`
+  - `list_test_suites(plan_id, project?)`
+  - `list_test_cases(plan_id, suite_id, project?)`
+  - `create_test_case(project?, title, description?, assigned_to?, area_path?, iteration_path?, tags?, state?, extra_fields?)`
+  - `add_test_case_to_suite(plan_id, suite_id, test_case_id, project?)`
+  - `remove_test_case_from_suite(plan_id, suite_id, test_case_id, project?)`
 
 On-Prem Notes
 
@@ -193,4 +207,3 @@ Security
 
 - Store PATs securely (OS keychain/secret manager). Avoid committing env values.
 - Prefer PAT over NTLM for service integrations.
-
