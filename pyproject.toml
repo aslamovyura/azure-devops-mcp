@@ -2,7 +2,7 @@
 name = "azure-devops-mcp"
 version = "0.1.0"
 description = "MCP server for Azure DevOps (on-prem) boards: list, create, update tasks"
-authors = ["Azure DevOps MCP"]
+authors = ["Yury Aslamov <aslamov.yura@gmail.com>"]
 readme = "README.md"
 packages = [
   { include = "azure_devops_mcp", from = "src" }

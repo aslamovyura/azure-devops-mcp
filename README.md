@@ -148,6 +148,11 @@ Tools (signatures)
   - `list_pull_requests(repository?, project?, status='active', creator_id?, reviewer_id?, target_ref_name?, source_ref_name?, top?)`
   - `get_pull_request(pr_id, repository?, project?)`
   - `get_pr_diffs(pr_id, repository?, project?, include_content=false, top?, skip?)`
+    - Returns file-level diffs via `diffs/commits`. On some on-prem servers, hunk content is not available even when `include_content=true`.
+    - Automatically falls back to commit-based comparison if branch refs cannot be resolved (e.g., TF401175 / GitUnresolvableToCommitException).
+  - `get_pr_file_content(pr_id, path, repository?, project?, side='source')`
+    - Downloads a file’s content at the PR’s source, target, or both sides using the Git Items API with versionDescriptor.
+    - `side`: `source` | `target` | `both`. Returns base64 content and commit/ref metadata.
   - `list_pr_commits(pr_id, repository?, project?)`
   - `list_pr_threads(pr_id, repository?, project?)`
   - `create_pr_comment(pr_id, text, repository?, project?, file_path?, start_line?, end_line?)`

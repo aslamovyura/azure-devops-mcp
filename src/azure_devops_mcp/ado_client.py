@@ -553,6 +553,91 @@ class AzureDevOpsClient:
             # If not recognized or no commits available, re-raise original error
             raise
 
+    # --- File content helpers (for PR analysis) ---
+    def _get_item_bytes(
+        self,
+        *,
+        project: str,
+        repository: str,
+        path: str,
+        version: str,
+        version_type: str = "commit",
+    ) -> bytes:
+        """Download raw file bytes for a repo item at a specific version.
+
+        Uses the Git items API with download=true to return raw file content.
+        version_type: one of commit|branch|tag
+        """
+        url = self._api(f"/_apis/git/repositories/{repository}/items", project=project)
+        params: Dict[str, Any] = {
+            "path": path,
+            "download": "true",
+            "versionDescriptor.version": version,
+            "versionDescriptor.versionType": version_type,
+        }
+        return self._get_raw(url, params=params)
+
+    def get_pr_file_content(
+        self,
+        pr_id: int,
+        path: str,
+        *,
+        repository: Optional[str] = None,
+        project: Optional[str] = None,
+        side: str = "source",
+    ) -> Dict[str, Any]:
+        """Download file content for a PR at source/target commit.
+
+        - side: 'source' | 'target' | 'both'
+        Returns base64 content for binary-safe transport along with commit IDs.
+        """
+        import base64
+
+        proj = project or self.cfg.default_project
+        repo = repository or self.cfg.default_repository
+        if not proj:
+            raise AzureDevOpsError("Project is required (set AZDO_PROJECT or pass project)")
+        if not repo:
+            raise AzureDevOpsError("Repository is required (set AZDO_REPOSITORY or pass repository)")
+
+        pr = self.get_pull_request(pr_id, repository=repo, project=proj)
+        src_commit = ((pr.get("lastMergeSourceCommit") or {}).get("commitId") or "").strip()
+        tgt_commit = ((pr.get("lastMergeTargetCommit") or {}).get("commitId") or "").strip()
+        source_ref = (pr.get("sourceRefName") or "").strip()
+        target_ref = (pr.get("targetRefName") or "").strip()
+
+        def fetch_for(label: str) -> Dict[str, Any]:
+            commit = src_commit if label == "source" else tgt_commit
+            ref = source_ref if label == "source" else target_ref
+            # Prefer commit when available; fall back to branch ref
+            if commit:
+                data = self._get_item_bytes(project=proj, repository=repo, path=path, version=commit, version_type="commit")
+                return {
+                    "path": path,
+                    "side": label,
+                    "commitId": commit,
+                    "content": base64.b64encode(data).decode("ascii"),
+                    "encoding": "base64",
+                    "versionType": "commit",
+                }
+            if ref:
+                data = self._get_item_bytes(project=proj, repository=repo, path=path, version=ref, version_type="branch")
+                return {
+                    "path": path,
+                    "side": label,
+                    "refName": ref,
+                    "content": base64.b64encode(data).decode("ascii"),
+                    "encoding": "base64",
+                    "versionType": "branch",
+                }
+            raise AzureDevOpsError(f"PR missing {'source' if label=='source' else 'target'} commit/ref for file fetch")
+
+        if side == "both":
+            return {"source": fetch_for("source"), "target": fetch_for("target")}
+        if side not in ("source", "target"):
+            raise AzureDevOpsError("side must be 'source', 'target', or 'both'")
+        return fetch_for(side)
+
     def create_pr_comment(
         self,
         pr_id: int,

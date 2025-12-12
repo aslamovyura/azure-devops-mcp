@@ -203,8 +203,9 @@ def get_pr_diffs(
 ) -> Dict[str, Any]:
     """Get diffs of the code in a Pull Request.
 
-    Returns the Azure DevOps Git diffs payload comparing PR source/target refs.
-    Set `include_content=true` to request hunk details when supported.
+    - Returns file-level change list via `diffs/commits`.
+    - `include_content=true` requests hunk content where the server supports it; some on-prem versions omit hunks regardless.
+    - If branch refs cannot be resolved (TF401175), the server falls back to commit IDs automatically.
     """
     client = _client()
     return client.get_pr_diffs(
@@ -248,6 +249,30 @@ def list_pr_threads(
     """List discussion threads for a pull request."""
     client = _client()
     return client.list_pr_threads(pr_id, repository=repository, project=project)
+
+
+@mcp.tool()
+def get_pr_file_content(
+    pr_id: int,
+    path: str,
+    repository: Optional[str] = None,
+    project: Optional[str] = None,
+    side: str = "source",
+) -> Dict[str, Any]:
+    """Download file content at a PR's source/target.
+
+    - side: 'source' | 'target' | 'both'
+    - Returns base64-encoded content plus commit/ref metadata.
+    - Uses Git items API with `versionDescriptor` so it works without direct file URL auth.
+    """
+    client = _client()
+    return client.get_pr_file_content(
+        pr_id,
+        path,
+        repository=repository,
+        project=project,
+        side=side,
+    )
 
 
 @mcp.tool()
